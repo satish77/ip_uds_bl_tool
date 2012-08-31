@@ -27,5 +27,9 @@
   <ItemGroup>
     <None Include="ip_uds_bl.py" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="can_tp.py" />
+    <Compile Include="SRecord.py" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.Common.targets" />
 </Project>
