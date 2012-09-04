@@ -44,6 +44,7 @@ class CanTp(object):
             pass
         return(process_data)
 
+    """ TODO: Handle more than 4095 bytes of data """
     def EncodeFrame(self):
         data_bytes = []
         if len(self.data_out) > 0:

@@ -93,7 +93,7 @@ class SRecord:
                 if chunk_size > 0:
                     num_chunks = num_chunks + 1
                     #if num_chunks < 10:
-                    print "Chunk address: 0x%08X" % chunk_addr + "\tSize: %8d" % chunk_size
+                    print "Chunk address: 0x%08X" % chunk_addr + "\tSize(bytes): %8d" % chunk_size
                 chunk_size = len(self.udata[i][1])
                 chunk_addr = self.udata[i][0]
                 next_addr = self.udata[i][0] + len(self.udata[i][1])
