@@ -99,7 +99,7 @@ class SRecord:
                 next_addr = self.udata[i][0] + len(self.udata[i][1])
         if chunk_size > 0:
             num_chunks = num_chunks + 1
-            print "Chunk address: 0x%08X" % chunk_addr + "\tSize: %8d" % chunk_size
+            print "Chunk address: 0x%08X" % chunk_addr + "\tSize(bytes): %8d" % chunk_size
 
     def send_to_target(self, addr, buf):
         global g_prg_rqst
