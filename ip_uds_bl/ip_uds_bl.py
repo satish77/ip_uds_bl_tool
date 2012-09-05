@@ -14,9 +14,9 @@ def can_xmit(list):
 
 def long_to_bytes(longdata):
     data =  [(longdata >> 24) & 0xFF]
-    data += [ (longdata >> 16) & 0xFF]
-    data += [ (longdata >>  8) & 0xFF]
-    data += [ (longdata >>  0) & 0xFF]        
+    data += [(longdata >> 16) & 0xFF]
+    data += [(longdata >>  8) & 0xFF]
+    data += [(longdata >>  0) & 0xFF]        
     return(data)
 
 UDS_state = 0
@@ -62,15 +62,17 @@ class UDS:
 
 
 class MainClass:
-    def __init__(self):
+    def __init__(self, load_n_go_addr):
         self.states = { 'IDLE': 0, 'BUSY': 1 }
         self.state = self.states['IDLE']
         self.uds = UDS()
+        self.cmds = { 'Erase':1, 'Flash':2 }
+        self.load_n_go_addr = load_n_go_addr
 
     """
     Download S-Record file and optionally execute
     """
-    def DownloadS19(self, s19filename):
+    def DownloadS19(self, s19filename, target_address):
         s19file = open(s19filename)
         lines = s19file.readlines();
         s19file.close()
@@ -81,6 +83,7 @@ class MainClass:
         data = self.sr.get_data()
         self.srec_idx = 0
         self.state = self.states['BUSY']
+        self.target_address = target_address
 
     def Task(self):
         if self.state == self.states['BUSY']:
@@ -88,30 +91,57 @@ class MainClass:
             uds_data = []
             first_address = data[self.srec_idx][0]
             next_address  = data[self.srec_idx][0]
+            # data size is limited to 1024 bytes eventhough 4095 is the protocol limit.
             # if the address of srecord is contiguous, then append it.
-            while (self.srec_idx < len(data)) and (data[self.srec_idx][0] == next_address):
+            while (self.srec_idx < len(data)) and (data[self.srec_idx][0] == next_address) and len(uds_data) < 1024:
                 uds_data.extend(data[self.srec_idx][1])
                 next_address = data[self.srec_idx][0] + len(data[self.srec_idx][1])
                 self.srec_idx = self.srec_idx + 1
 
             if self.srec_idx >= len(data):
                 self.state = self.states['IDLE']
-            self.uds.TransferAndGo(first_address, uds_data)
+            self.uds.TransferAndGo(self.target_address, uds_data)
+            self.ExecuteLoadNGo(self.load_n_go_addr)
+            self.target_address += len(uds_data)
 
+    def EraseFlashBock(self, block_idx, cmd_buf_addr):
+        uds_data = [self.cmds['Erase'], block_idx]
+        self.uds.TransferAndGo(cmd_buf_addr, uds_data)
+
+    def ExecuteLoadNGo(self, load_n_go_addr):
+        uds_data = long_to_bytes(load_n_go_addr)
+        self.uds.TransferAndGo(self.load_n_go_addr, uds_data, True)
+    
+"""
+Steps:-
+1. Download SBL
+2. Execute LoadNgo(SBL) for erasing flash blocks.
+3. Execute LoadNgo(SBL) after downloading each s19 block(contiguous records).
+
+Fixed addresses:- 
+1. Command Buffer 
+2. LoadNGo routine
+3. Code Buffer
+"""
+
+command_buf_addr = 0xA0000000 # Data Scratchpad RAM (DSPR)
+load_n_go_addr   = 0xB0000000 # Data Scratchpad RAM
+code_buf_addr    = 0xC0000000 # Program Scratchpad RAM (PSPR)
 
 #uds = UDS()
 #uds.TransferAndGo(0x90000000, [])
 #uds.RequestForDownload()
 
-mc = MainClass()
-mc.DownloadS19(r'C:\p\hgprojects\TC27XAppBuild\app\bin\AurixApp.s19')
+mc = MainClass(load_n_go_addr)
+mc.DownloadS19(r'C:\p\hgprojects\TC27XAppBuild\app\bin\AurixApp.s19', code_buf_addr)
 
-#for i in range(2):
-#    if mc.state == mc.states['IDLE']:
-#        break
-#    else:
-#        mc.Task()
+for i in range(2):
+    if mc.state == mc.states['IDLE']:
+        break
+    else:
+        mc.Task()
 
 while mc.state == mc.states['BUSY']: mc.Task()
+
 
 raw_input('Press any key to continue ...')
