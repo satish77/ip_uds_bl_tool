@@ -1,16 +1,27 @@
 import can_tp
 import SRecord
+import can_if
+import System.Timers
 
-print_switch = 0x3
+debug_switch = 0x8003
+timer_expired = False
 
 def debug_print(mask, msg):
-    if print_switch & mask != 0:
+    if debug_switch & mask != 0:
         print msg
 
 def can_xmit(list):
-    if print_switch & 0x2 <> 0:
+    if debug_switch & 0x2 <> 0:
         for item in list: print '%02X' % int(item),
         print
+    canif.xmit(list)
+    aTimer = System.Timers.Timer(100)
+    timer_expired = False
+    aTimer.Elapsed += timer_callback
+
+def timer_callback():
+    timer_expired = True
+    if mc.state == mc.states['BUSY']: mc.Task()
 
 def long_to_bytes(longdata):
     data =  [(longdata >> 24) & 0xFF]
@@ -28,7 +39,7 @@ class UDS:
         self.active = False
 
     def sm(self):
-        debug_print(1, "sm")
+        debug_print(1, "UDS State Machine")
         # TODO: set can_tx_rdy to True after STMIN and after sending previous message
         if self.can_tx_rdy and self.active == True:
             can_data_bytes = self.cantp.EncodeFrame()
@@ -78,7 +89,7 @@ class MainClass:
         s19file.close()
         self.sr = SRecord.SRecord()
         self.sr.readrecords(lines)
-        if print_switch & 0x1 <> 0:
+        if debug_switch & 0x1 <> 0:
             self.sr.print_chunks()
         data = self.sr.get_data()
         self.srec_idx = 0
@@ -102,6 +113,8 @@ class MainClass:
                 self.state = self.states['IDLE']
             self.uds.TransferAndGo(self.target_address, uds_data)
             self.ExecuteLoadNGo(self.load_n_go_addr)
+            if (debug_switch & 0x8000) == 0x8000: # stop on first transfer
+                self.state = self.states['IDLE']
             self.target_address += len(uds_data)
 
     def EraseFlashBock(self, block_idx, cmd_buf_addr):
@@ -111,6 +124,11 @@ class MainClass:
     def ExecuteLoadNGo(self, load_n_go_addr):
         uds_data = long_to_bytes(load_n_go_addr)
         self.uds.TransferAndGo(self.load_n_go_addr, uds_data, True)
+
+    def TransferSomeData(self, target_address, data):
+        #self.state = self.states['BUSY']
+        self.target_address = target_address
+        self.uds.TransferAndGo(target_address, data)
     
 """
 Steps:-
@@ -126,22 +144,26 @@ Fixed addresses:-
 
 command_buf_addr = 0xA0000000 # Data Scratchpad RAM (DSPR)
 load_n_go_addr   = 0xB0000000 # Data Scratchpad RAM
-code_buf_addr    = 0xC0000000 # Program Scratchpad RAM (PSPR)
+code_buf_addr    = 0x70000000 # Program Scratchpad RAM (PSPR) in CPU0
 
 #uds = UDS()
 #uds.TransferAndGo(0x90000000, [])
 #uds.RequestForDownload()
 
+canif = can_if.CanIf()
+
 mc = MainClass(load_n_go_addr)
 mc.DownloadS19(r'C:\p\hgprojects\TC27XAppBuild\app\bin\AurixApp.s19', code_buf_addr)
+#mc.TransferSomeData(code_buf_addr, [1, 2, 3, 4, 5, 6, 7, 8, 9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 0x10, 0x11 ])
+#for i in range(2):
+#    if mc.state == mc.states['IDLE']:
+#        break
+#    else:
+#        mc.Task()
 
-for i in range(2):
-    if mc.state == mc.states['IDLE']:
-        break
-    else:
-        mc.Task()
 
 while mc.state == mc.states['BUSY']: mc.Task()
 
+canif.rx_thread_active = False
 
-raw_input('Press any key to continue ...')
+#raw_input('Press any key to continue ...')

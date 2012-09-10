@@ -12,8 +12,8 @@ class CanTp(object):
         self.first_frame_sent = False
 
     def AppendData(self, data):
-        a = ' '.join( [ "%02X" % x for x in data ])
-        print a
+        #a = ' '.join( [ "%02X" % x for x in data ])
+        #print a
         self.data_out.extend(data)
         
     def DecodeFrame(self, data_bytes):
