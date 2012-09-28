@@ -29,7 +29,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="can_tp.py" />
+    <Compile Include="gm3110.py" />
     <Compile Include="SRecord.py" />
+    <Compile Include="uds.py" />
+    <Compile Include="myutils.py" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.Common.targets" />
 </Project>

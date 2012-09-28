@@ -1,8 +1,12 @@
-import unittest;
+import unittest
+import myutils
 
 class CanTp(object):
-    def __init__(self):
+    def __init__(self, canif):
         self.Init()
+        self.event_sink = None
+        canif.event_sink = self
+        self.canif = canif
 
     def Init(self):
         self.data_out = []
@@ -70,6 +74,29 @@ class CanTp(object):
                     self.seq_ctr = 0
                     self.first_frame_sent = True
         return(data_bytes)
+
+    def xmit(self, list):
+        if myutils.debug_switch & 0x2 <> 0:
+            for item in list: print '%02X' % int(item),
+            print
+        self.data_out = list
+        
+    def on_receive(self):
+        if myutils.debug_switch & 0x1 <> 0:
+            print "CanTp::on_receive"
+        if self.DecodeFrame(self.canif.received_data) == True:
+            if self.event_sink <> None:
+                self.event_sink.on_receive()
+
+    def Task(self):
+        myutils.debug_print(1, "CanTp::Task")
+        # TODO: set can_tx_rdy to True after STMIN and after sending previous message
+        if self.can_tx_rdy and self.active == True:
+            can_data_bytes = self.cantp.EncodeFrame()
+            if len(can_data_bytes) > 0:
+                self.canif.xmit(can_data_bytes)
+            else:
+                self.active = False
 
 
 class CanTpTestSuite(unittest.TestCase):
