@@ -1,5 +1,8 @@
 import unittest
 import myutils
+import System.Timers
+import threading
+
 
 class CanTp(object):
     def __init__(self, canif):
@@ -80,6 +83,7 @@ class CanTp(object):
             for item in list: print '%02X' % int(item),
             print
         self.data_out = list
+        self.active = True
         
     def on_receive(self):
         if myutils.debug_switch & 0x1 <> 0:
@@ -89,14 +93,34 @@ class CanTp(object):
                 self.event_sink.on_receive()
 
     def Task(self):
-        myutils.debug_print(1, "CanTp::Task")
-        # TODO: set can_tx_rdy to True after STMIN and after sending previous message
-        if self.can_tx_rdy and self.active == True:
-            can_data_bytes = self.cantp.EncodeFrame()
+        myutils.debug_print(1, "CanTp::Task")        
+        if self.active == True:
+            can_data_bytes = self.EncodeFrame()
             if len(can_data_bytes) > 0:
                 self.canif.xmit(can_data_bytes)
+                self.timedout = False
+            #    Method 1: Not working
+            #    self.t = System.Timers.Timer(0.100)
+            #    self.t.Elapsed += self.on_timeout
+            #    Method 2: Not working
+            #    timer = Timer()
+            #    timer.Interval = 6000
+            #    timer.Tick += self.on_timeout
+            #    timer.Start()
+            #    timer_id = timer.set_timer(1000, self.on_timeout) 
+                t = threading.Timer(0.1, self.on_timeout) # 0.1 min
+                t.start()
+                t.join()
+                t.cancel()
             else:
                 self.active = False
+        print self.timedout, self.active
+        return self.active
+
+    def on_timeout(self):
+        self.timedout = True
+        self.active = False
+        raw_input('Press any key to continue ...')
 
 
 class CanTpTestSuite(unittest.TestCase):

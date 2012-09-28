@@ -139,6 +139,7 @@ class CanIf:
                     #elif xlStatus[1].tag == vxlapi_NET20.XLClass.XLeventType.XL_SYNC_PULSE:
                     #    print 'vxlapi_NET20.XLClass.XLeventType.XL_SYNC_PULSE'
 
+                    
                     xlStatus = self.rxChannel.xlReceive(receivedEvent)
 
 

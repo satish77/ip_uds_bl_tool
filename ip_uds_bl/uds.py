@@ -9,28 +9,30 @@ class UDS():
         self.addressAndLengthFormatIdentifier = 0
         self.dataFormatIdentifier = 0
         cantp.event_sink = self.on_rcv_data
+        self.routines = { 'FLASHPROGRAM' : 1, 'FLASHERASE' : 2 }
 
     def on_rcv_data(self):
         myutils.debug_print(0x1, 'UDS::on_rcv_data')
         self.data_sink.on_rcv_data()
    
-    def TransferData(self, data):
+    def TransferData(self):
         """ Transfers at the most 4095 bytes of data """
         myutils.debug_print(1, "UDS::TransferData")
         self.blockSequenceCounter = (self.blockSequenceCounter + 1) % 255
         self.cantp.Init()
         uds_data = [0x36, self.blockSequenceCounter]
-        uds_data.extend(data)
+        uds_data.extend(self.uds_data_out)
         self.cantp.xmit(uds_data)
 
-    def RequestDownload(self, address, size):
+    def RequestDownload(self, address, data):
         myutils.debug_print(1, "UDS::RequestDownload")
+        self.uds_data_out = data
         self.cantp.Init()
         self.blockSequenceCounter = 0
         uds_data = [0x34]
         uds_data.extend([self.dataFormatIdentifier, self.addressAndLengthFormatIdentifier])
         uds_data.extend(myutils.long_to_list(address))
-        uds_data.extend(myutils.long_to_list(size))
+        uds_data.extend(myutils.long_to_list(len(data)))
         self.cantp.xmit(uds_data)
 
     def RequestTransferExit(self):

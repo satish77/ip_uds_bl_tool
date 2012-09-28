@@ -5,21 +5,29 @@ import uds
 import myutils
 import System.Timers
 
-timer_expired = False
+#timer_expired = False
 
 class MainClass:
     def __init__(self, load_n_go_addr, uds):
-        self.states = { 'IDLE': 0, 'BUSY': 1 }
+        self.states = { 'IDLE'              : 0, 
+                        'START'             : 1, 
+                        'UDS_TRANSFER_DATA' : 2, 
+                        'UDS_TRANSFER_EXIT' : 3, 
+                        'FLASH_PROGRAM'     : 4,  
+                        'NEXT'              : 5 }
         self.state = self.states['IDLE']
         self.uds = uds
-        self.flash_cmds = { 'Erase':1, 'Flash':2 }
-        self.s19_cmds = { 'Program':1, 'Download':2 }
+        self.flash_cmds = { 'ERASE':1, 'FLASH':2 }
+        self.s19_cmds = { 'PROGRAM':1, 'DOWNLOAD':2 }
         self.load_n_go_addr = load_n_go_addr
+        self.uds.receive_sink = self
 
-    """
-    Download S-Record file and optionally execute
-    """
+    def on_rcv_data(self):
+        if self.state <> self.states['IDLE']:
+            self.Task()
+
     def DownloadS19(self, s19filename):
+        """ Download S-Record file and optionally execute """
         s19file = open(s19filename)
         lines = s19file.readlines();
         s19file.close()
@@ -29,8 +37,9 @@ class MainClass:
             self.sr.print_chunks()
         data = self.sr.get_data()
         self.srec_idx = 0
-        self.state = self.states['BUSY']
-        self.s19_cmd = self.s19_cmds['Download']
+        self.state = self.states['START']
+        self.s19_cmd = self.s19_cmds['DOWNLOAD']
+        self.Task()
 
     def ProgramS19(self, s19filename, target_address):
         s19file = open(s19filename)
@@ -42,16 +51,16 @@ class MainClass:
             self.sr.print_chunks()
         data = self.sr.get_data()
         self.srec_idx = 0
-        self.state = self.states['BUSY']
+        self.state = self.states['START']
         self.target_address = target_address
-        self.s19_cmd = self.s19_cmds['Program']
+        self.s19_cmd = self.s19_cmds['PROGRAM']
+        self.Task()
 
     def Task(self):
         assert self.state in self.states.values()
         assert self.s19_cmd in self.s19_cmds.values()
 
-        if self.state == self.states['BUSY']:
-
+        if self.state == self.states['START']:
             data = self.sr.get_data()
             uds_data = []
             first_address = data[self.srec_idx][0]
@@ -62,23 +71,33 @@ class MainClass:
                 uds_data.extend(data[self.srec_idx][1])
                 next_address = data[self.srec_idx][0] + len(data[self.srec_idx][1])
                 self.srec_idx = self.srec_idx + 1
-
+            if self.s19_cmd == self.s19_cmds['DOWNLOAD']:
+                self.target_address = first_address
+            self.uds.RequestDownload(self.target_address, uds_data)
+            self.state = self.states['UDS_TRANSFER_DATA']            
+        elif self.state == self.states['UDS_TRANSFER_DATA']:
+            self.uds.TransferData()
+            state = self.states['UDS_TRANSFER_EXIT']
+        elif self.state == self.states['UDS_TRANSFER_EXIT']:
+            self.uds.TransferExit()            
+            if self.s19_cmd == self.s19_cmds['PROGRAM']:
+                self.state = self.states['FLASH_PROGRAM']
+            else:
+                self.state = self.states['NEXT']
+        elif self.state == self.states['FLASH_PROGRAM']:
+            self.uds.RoutineControl(1, uds.routines['FLASHPROGRAM'])
+            self.state = self.states['NEXT']
+        elif self.state == self.states['NEXT']:
+            data = self.sr.get_data()
             if self.srec_idx >= len(data):
                 self.state = self.states['IDLE']
-            if self.s19_cmd == self.s19_cmds['Download']:
-                self.target_address = first_address
-            self.uds.RequestDownload(self.target_address, len(uds_data))
-            self.uds.TransferData(uds_data)
-            if self.s19_cmd == self.s19_cmds['Program']:
-                self.uds.RoutineControl(1, uds.routines['FlashProgram'])
+            else:
+                self.target_address += len(uds_data)
             if (myutils.debug_switch & 0x8000) == 0x8000: # stop on first transfer
-                self.state = self.states['IDLE']
-            self.target_address += len(uds_data)
-        
-
+                self.state = self.states['IDLE']            
 
     def EraseFlashBock(self, block_idx, num_blocks):
-        self.uds.RoutineControl(1, uds.routines['FlashErase'], block_idx, num_blocks) 
+        self.uds.RoutineControl(1, uds.routines['FLASHERASE'], block_idx, num_blocks) 
 
     def TransferSomeData(self, target_address, data):
         self.uds.RequestDownload(target_address, len(data))
@@ -123,7 +142,9 @@ mc.DownloadS19(r'C:\p\hgprojects\TC27XSBL\app\bin\AurixSBL.s19')
 #        mc.Task()
 
 try:
-    while mc.state == mc.states['BUSY']: mc.Task()
+    while mc.state <> mc.states['IDLE']:
+        while cantp.Task() == True:
+            pass
 finally:
     canif.rx_thread_active = False
 
