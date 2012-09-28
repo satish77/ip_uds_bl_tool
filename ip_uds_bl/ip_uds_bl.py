@@ -142,9 +142,12 @@ mc.DownloadS19(r'C:\p\hgprojects\TC27XSBL\app\bin\AurixSBL.s19')
 #        mc.Task()
 
 try:
-    while mc.state <> mc.states['IDLE']:
-        while cantp.Task() == True:
-            pass
+    while (mc.state <> mc.states['IDLE'] and (uds.timedout == False)):
+        pass
+    
+    if uds.timedout == True:
+        print "UDS timedout..."
+
 finally:
     canif.rx_thread_active = False
 

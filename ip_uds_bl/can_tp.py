@@ -10,6 +10,7 @@ class CanTp(object):
         self.event_sink = None
         canif.event_sink = self
         self.canif = canif
+        self.timedout = False
 
     def Init(self):
         self.data_out = []
@@ -108,19 +109,17 @@ class CanTp(object):
             #    timer.Tick += self.on_timeout
             #    timer.Start()
             #    timer_id = timer.set_timer(1000, self.on_timeout) 
-                t = threading.Timer(0.1, self.on_timeout) # 0.1 min
-                t.start()
-                t.join()
-                t.cancel()
+                self.t = threading.Timer(0.01, self.on_stmin_tout) # 0.1 min
+                self.t.start()
+                #self.t.join()                
             else:
                 self.active = False
-        print self.timedout, self.active
+        #print self.timedout, self.active
         return self.active
 
-    def on_timeout(self):
-        self.timedout = True
-        self.active = False
-        raw_input('Press any key to continue ...')
+    def on_stmin_tout(self):
+        self.t.cancel()
+        self.Task()
 
 
 class CanTpTestSuite(unittest.TestCase):
