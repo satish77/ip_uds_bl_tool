@@ -20,7 +20,7 @@ class MainClass:
         self.flash_cmds = { 'ERASE':1, 'FLASH':2 }
         self.s19_cmds = { 'PROGRAM':1, 'DOWNLOAD':2 }
         self.load_n_go_addr = load_n_go_addr
-        self.uds.receive_sink = self
+        self.uds.event_sink = self.on_rcv_data
 
     def on_rcv_data(self):
         if self.state <> self.states['IDLE']:
@@ -29,7 +29,7 @@ class MainClass:
     def DownloadS19(self, s19filename):
         """ Download S-Record file and optionally execute """
         s19file = open(s19filename)
-        lines = s19file.readlines();
+        lines = s19file.readlines()
         s19file.close()
         self.sr = SRecord.SRecord()
         self.sr.readrecords(lines)
@@ -77,9 +77,9 @@ class MainClass:
             self.state = self.states['UDS_TRANSFER_DATA']            
         elif self.state == self.states['UDS_TRANSFER_DATA']:
             self.uds.TransferData()
-            state = self.states['UDS_TRANSFER_EXIT']
+            self.state = self.states['UDS_TRANSFER_EXIT']
         elif self.state == self.states['UDS_TRANSFER_EXIT']:
-            self.uds.TransferExit()            
+            self.uds.RequestTransferExit()            
             if self.s19_cmd == self.s19_cmds['PROGRAM']:
                 self.state = self.states['FLASH_PROGRAM']
             else:
@@ -93,8 +93,8 @@ class MainClass:
                 self.state = self.states['IDLE']
             else:
                 self.target_address += len(uds_data)
-            if (myutils.debug_switch & 0x8000) == 0x8000: # stop on first transfer
-                self.state = self.states['IDLE']            
+            #if (myutils.debug_switch & 0x8000) == 0x8000: # stop on first transfer
+            #    self.state = self.states['IDLE']            
 
     def EraseFlashBock(self, block_idx, num_blocks):
         self.uds.RoutineControl(1, uds.routines['FLASHERASE'], block_idx, num_blocks) 
@@ -151,4 +151,4 @@ try:
 finally:
     canif.rx_thread_active = False
 
-#raw_input('Press any key to continue ...')
+raw_input('Press any key to continue ...')

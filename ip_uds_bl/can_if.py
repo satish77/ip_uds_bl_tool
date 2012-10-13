@@ -5,6 +5,7 @@ clr.AddReferenceToFile("vxlapi_NET20.dll")
 import vxlapi_NET20
 clr.AddReferenceToFile("UnmanagedCode.dll")
 import UnmanagedCode
+import myutils
 
 
 class CanIf:
@@ -83,7 +84,7 @@ class CanIf:
                     #print int(vxlapi_NET20.XLClass.XLeventType.XL_RECEIVE_MSG)
                     if xlStatus[1].tag == 1:
                         #print 'XL_RECEIVE_MSG'
-                        if debug == 1:
+                        if (myutils.debug_switch & 0x1) == 0x1:
                             self.rxChannel.xlPrintRx(xlStatus[1])
 
                         # print the received message
@@ -109,7 +110,7 @@ class CanIf:
                                 self.cmd_failed = 0
                             
                             if self.event_sink <> None: 
-                                self.event_sink.on_receive()
+                                self.event_sink()
 
                     elif xlStatus[1].tag == 4:
                         print 'XL_CHIP_STATE'

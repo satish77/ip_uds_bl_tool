@@ -8,7 +8,7 @@ class CanTp(object):
     def __init__(self, canif):
         self.Init()
         self.event_sink = None
-        canif.event_sink = self
+        canif.event_sink = self.on_receive
         self.canif = canif
         self.timedout = False
 
@@ -30,6 +30,7 @@ class CanTp(object):
         if frame_type == 0: # single frame
             self.data_in_dl = data_bytes[0] & 0xF
             self.data_in.extend(data_bytes[1:self.data_in_dl+1])
+            process_data = True
         elif frame_type == 1: # first frame
             if frame_type == 1:
                 self.data_in_dl = ((data_bytes[0] & 0xF) << 8) | data_bytes[1]    
@@ -51,7 +52,7 @@ class CanTp(object):
             self.data_out_BS = data_bytes[1]
             self.data_out_STMin = data_bytes[2]
         else:
-            pass
+            pass                    
         return(process_data)
 
     """ TODO: Handle more than 4095 bytes of data """
@@ -85,13 +86,14 @@ class CanTp(object):
             print
         self.data_out = list
         self.active = True
+        self.Task()
         
     def on_receive(self):
         if myutils.debug_switch & 0x1 <> 0:
             print "CanTp::on_receive"
         if self.DecodeFrame(self.canif.received_data) == True:
             if self.event_sink <> None:
-                self.event_sink.on_receive()
+                self.event_sink()
 
     def Task(self):
         myutils.debug_print(1, "CanTp::Task")        

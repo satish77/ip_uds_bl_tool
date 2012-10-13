@@ -12,12 +12,13 @@ class UDS():
         cantp.event_sink = self.on_rcv_data
         self.routines = { 'FLASHPROGRAM' : 1, 'FLASHERASE' : 2 }
         self.timedout = False
+        self.rcv_timer = None
 
     def xmit(self, data):
         self.timedout = False
         self.cantp.xmit(data)
-        self.rcv_timer = threading.Timer(0.01, self.on_rcv_tout) # 0.1 min
-        self.rcv_timer.start()
+        #self.rcv_timer = threading.Timer(0.1, self.on_rcv_tout) # 0.1 min
+        #self.rcv_timer.start()
 
     def on_rcv_tout(self):
         self.rcv_timer.cancel()
@@ -29,7 +30,7 @@ class UDS():
             self.rcv_timer.cancel()
             self.rcv_timer = None
         myutils.debug_print(0x1, 'UDS::on_rcv_data')
-        self.data_sink.on_rcv_data()
+        self.event_sink()
    
     def TransferData(self):
         """ Transfers at the most 4095 bytes of data """
@@ -54,12 +55,12 @@ class UDS():
 
     def RequestTransferExit(self):
         myutils.debug_print(1, "UDS::RequestTransferExit")
-        self.cantp.init()
+        self.cantp.Init()
         self.xmit([0x37])
 
     def RoutineControl(self, routine_control_type, routine_id, op):
         myutils.debug_print(1, "UDS::RoutineControl")
-        self.cantp.init()
+        self.cantp.Init()
         uds_data = [0x31]
         uds_data.AppendData([routine_control_type])
         uds_data.AppendData([(routine_id & 0xFF) >> 8])
