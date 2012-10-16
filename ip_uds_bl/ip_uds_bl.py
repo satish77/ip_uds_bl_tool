@@ -5,6 +5,35 @@ import uds
 import myutils
 import System.Timers
 
+flash_sec_addr = [
+    0xA0000000,
+    0xA0004000,
+    0xA0008000,
+    0xA000C000,
+    0xA0010000,
+    0xA0014000,
+    0xA0018000,
+    0xA001C000,
+    0xA0020000,
+    0xA0028000,
+    0xA0030000,
+    0xA0038000,
+    0xA0040000,
+    0xA0048000,
+    0xA0050000,
+    0xA0058000,
+    0xA0060000,
+    0xA0070000,
+    0xA0080000,
+    0xA0090000,
+    0xA00A0000,
+    0xA00C0000,
+    0xA00E0000,
+    0xA0100000,
+    0xA0140000,
+    0xA0180000,
+    0xA01C0000
+]
 class MainClass:
     def __init__(self, uds):
         self.states = { 'IDLE'                 : 0, 
@@ -31,6 +60,7 @@ class MainClass:
             self.sr.print_chunks()
         data = self.sr.get_data()
         self.srec_idx = 0
+        # chunk size is limited to 1024 bytes eventhough 4095 is the protocol limit.        
         self.chunk_size = 1024
         self.state = self.states['UDS_REQUEST_DOWNLOAD']
         self.Task()
@@ -38,24 +68,22 @@ class MainClass:
     def Task(self):
         assert self.state in self.states.values()
 
-        if self.state == self.states['UDS_REQUEST_DOWNLOAD']:            
+        if self.state == self.states['UDS_REQUEST_DOWNLOAD']:
+            self.uds.event_sink = self.on_rcv_data             
             data = self.sr.get_data()            
-            if self.srec_idx < len(data):
-                self.uds_data = []
-                start_address = data[self.srec_idx][0]
-                next_address  = data[self.srec_idx][0]
-                # data size is limited to 1024 bytes eventhough 4095 is the protocol limit.
-                # if the address of srecord is contiguous, then append it.
-                while (self.srec_idx < len(data)) and (data[self.srec_idx][0] == next_address):
-                    self.uds_data.extend(data[self.srec_idx][1])
-                    next_address = data[self.srec_idx][0] + len(data[self.srec_idx][1])
-                    self.srec_idx = self.srec_idx + 1
-                if len(self.uds_data) > 0:
-                    self.uds.RequestDownload(start_address, len(self.uds_data))
-                    self.chunk_idx = 0
-                    self.state = self.states['UDS_TRANSFER_DATA']            
-                else:
-                    self.state = self.states['IDLE']
+            assert self.srec_idx < len(data)
+            self.uds_data = []
+            start_address = data[self.srec_idx][0]
+            next_address  = data[self.srec_idx][0]
+            # concatenate all contiguous data
+            while (self.srec_idx < len(data)) and (data[self.srec_idx][0] == next_address):
+                self.uds_data.extend(data[self.srec_idx][1])
+                next_address = data[self.srec_idx][0] + len(data[self.srec_idx][1])
+                self.srec_idx = self.srec_idx + 1
+            if len(self.uds_data) > 0:
+                self.uds.RequestDownload(start_address, len(self.uds_data))
+                self.chunk_idx = 0
+                self.state = self.states['UDS_TRANSFER_DATA']            
             else:
                 self.state = self.states['IDLE']
         elif self.state == self.states['UDS_TRANSFER_DATA']:
@@ -64,19 +92,33 @@ class MainClass:
             if self.chunk_idx >= len(self.uds_data):
                 self.state = self.states['UDS_TRANSFER_EXIT']
         elif self.state == self.states['UDS_TRANSFER_EXIT']:
-            self.uds.RequestTransferExit()            
-            self.state = self.states['UDS_REQUEST_DOWNLOAD']
+            self.uds.RequestTransferExit()       
+            data = self.sr.get_data()                 
+            if self.srec_idx < len(data):
+                self.state = self.states['UDS_REQUEST_DOWNLOAD']
+            else:
+                self.state = self.states['IDLE']
             #if (myutils.debug_switch & 0x8000) == 0x8000: # stop on first transfer
             #    self.state = self.states['IDLE']            
 
     def EraseFlashBock(self, start_block_idx, num_blocks):
-        self.uds.RoutineControl(uds.control_type['START'], uds.routines['ERASE_MEMORY'], [start_block_idx, num_blocks]) 
+        params = myutils.long_to_list(flash_sec_addr[start_block_idx])
+        params.append(num_blocks)
+        self.uds.RoutineControl(uds.control_type['START'], uds.routines['ERASE_MEMORY'], params) 
 
     def TransferSomeData(self, target_address, data):
-        """ TODO: The following needs to be state machine. They are asynchronous calls. """
-        self.uds.RequestDownload(target_address, len(data))
-        self.uds.TransferData(data)
-        self.uds.RequestTransferExit()
+        self.uds.event_sink = self.TransferDataTask
+        self.uds_data = data
+        self.state = self.states['UDS_TRANSFER_DATA']
+        self.uds.RequestDownload(target_address, len(data))                
+
+    def TransferDataTask(self):
+        if self.state == self.states['UDS_TRANSFER_DATA']:
+            self.uds.TransferData(self.uds_data)
+            self.state = self.states['UDS_TRANSFER_EXIT']
+        elif self.state == self.states['UDS_TRANSFER_EXIT']:
+            self.uds.RequestTransferExit()
+            self.state = self.states['IDLE']            
     
 """
 Steps:-
@@ -91,10 +133,13 @@ uds   = uds.UDS(cantp)
 mc    = MainClass(uds)
 
 mc.DownloadS19(r'C:\p\hgprojects\TC27XSBL\app\bin\AurixSBL.s19')
-#mc.EraseFlashBock(8, 2)
+while (mc.state <> mc.states['IDLE'] and (uds.timedout == False)):
+    pass    
+
+#mc.EraseFlashBock(7, 25-7)
 #mc.DownloadS19(r'C:\p\hgprojects\TC27XAppBuild\app\bin\AurixApp.s19')
 
-#mc.TransferSomeData(code_buf_addr, [1, 2, 3, 4, 5, 6, 7, 8, 9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 0x10, 0x11 ])
+mc.TransferSomeData(flash_sec_addr[8], [1, 2, 3, 4, 5, 6, 7, 8, 9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 0x10, 0x11 ])
 
 #for i in range(2):
 #    if mc.state == mc.states['IDLE']:
