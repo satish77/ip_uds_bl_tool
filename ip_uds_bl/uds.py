@@ -10,7 +10,8 @@ class UDS():
         self.addressAndLengthFormatIdentifier = 0
         self.dataFormatIdentifier = 0
         cantp.event_sink = self.on_rcv_data
-        self.routines = { 'FLASHPROGRAM' : 1, 'FLASHERASE' : 2 }
+        self.routines = { 'ERASE_MEMORY' : 0xFF00, 'CHECK_ROUTINE' : 0x0202 }
+        self.control_type = { 'START':1, 'STOP':2, 'GET_RESULTS': 3 }
         self.timedout = False
         self.rcv_timer = None
 
@@ -32,25 +33,24 @@ class UDS():
         myutils.debug_print(0x1, 'UDS::on_rcv_data')
         self.event_sink()
    
-    def TransferData(self):
+    def TransferData(self, data):
         """ Transfers at the most 4095 bytes of data """
         myutils.debug_print(1, "UDS::TransferData")
         self.blockSequenceCounter = (self.blockSequenceCounter + 1) % 255
         self.cantp.Init()
         uds_data = [0x36, self.blockSequenceCounter]
-        uds_data.extend(self.uds_data_out)
+        uds_data.extend(data)
         self.xmit(uds_data)
         
 
-    def RequestDownload(self, address, data):
+    def RequestDownload(self, address, data_size_bytes):
         myutils.debug_print(1, "UDS::RequestDownload")
-        self.uds_data_out = data
         self.cantp.Init()
         self.blockSequenceCounter = 0
         uds_data = [0x34]
         uds_data.extend([self.dataFormatIdentifier, self.addressAndLengthFormatIdentifier])
         uds_data.extend(myutils.long_to_list(address))
-        uds_data.extend(myutils.long_to_list(len(data)))
+        uds_data.extend(myutils.long_to_list(data_size_bytes))                        
         self.xmit(uds_data)
 
     def RequestTransferExit(self):
@@ -62,8 +62,9 @@ class UDS():
         myutils.debug_print(1, "UDS::RoutineControl")
         self.cantp.Init()
         uds_data = [0x31]
-        uds_data.AppendData([routine_control_type])
-        uds_data.AppendData([(routine_id & 0xFF) >> 8])
-        uds_data.AppendData([routine_id & 0xFF])
+        uds_data.append(routine_control_type)
+        uds_data.append((routine_id >> 8) & 0xFF)
+        uds_data.append(routine_id & 0xFF)
+        uds_data.extend(op)
         self.xmit(uds_data)
 
