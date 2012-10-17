@@ -132,14 +132,39 @@ cantp = can_tp.CanTp(canif)
 uds   = uds.UDS(cantp)
 mc    = MainClass(uds)
 
-mc.DownloadS19(r'C:\p\hgprojects\TC27XSBL\app\bin\AurixSBL.s19')
-while (mc.state <> mc.states['IDLE'] and (uds.timedout == False)):
-    pass    
+states = {
+    'IDLE'        : 0,
+    'DOWNLOAD_SBL': 1,
+    'ERASE_APP'   : 2,
+    'DOWNLOAD_APP': 3
+}
 
-#mc.EraseFlashBock(7, 25-7)
-#mc.DownloadS19(r'C:\p\hgprojects\TC27XAppBuild\app\bin\AurixApp.s19')
+def main_func():
+    global state
+    #while (mc.state <> mc.states['IDLE'] and (uds.timedout == False)):
+    #    pass    
+    #print 'mc.state', mc.state
+    if mc.state == mc.states['IDLE']:
+        #print 'state', state
+        if state == states['DOWNLOAD_SBL']:
+            mc.DownloadS19(r'C:\p\hgprojects\TC27XSBL\app\bin\AurixSBL.s19')
+            state = states['ERASE_APP']
+        elif state == states['ERASE_APP']:
+            mc.EraseFlashBock(8, 1)
+            #state = states['IDLE']
+            state = states['DOWNLOAD_APP']
+        elif state == states['DOWNLOAD_APP']:
+            #mc.DownloadS19(r'C:\p\hgprojects\TC27XAppBuild\app\bin\AurixApp.s19')
+            # Program 256 bytes(mininum possible)
+            mc.TransferSomeData(flash_sec_addr[8], range(256))
+            state = states['IDLE']
 
-mc.TransferSomeData(flash_sec_addr[8], [1, 2, 3, 4, 5, 6, 7, 8, 9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 0x10, 0x11 ])
+
+
+
+#while (mc.state <> mc.states['IDLE'] and (uds.timedout == False)):
+#    pass    
+
 
 #for i in range(2):
 #    if mc.state == mc.states['IDLE']:
@@ -147,13 +172,22 @@ mc.TransferSomeData(flash_sec_addr[8], [1, 2, 3, 4, 5, 6, 7, 8, 9, 0xA, 0xB, 0xC
 #    else:
 #        mc.Task()
 
+#try:
+#    while (mc.state <> mc.states['IDLE'] and (uds.timedout == False)):
+#        pass    
+#    if mc.state == mc.states['IDLE']:
+#        print 'Operation sucessfully completed.'
+#    if uds.timedout == True:
+#        print "UDS timedout."
+
+#finally:
+#    canif.rx_thread_active = False
+
 try:
-    while (mc.state <> mc.states['IDLE'] and (uds.timedout == False)):
-        pass    
-    if mc.state == mc.states['IDLE']:
-        print 'Operation sucessfully completed.'
-    if uds.timedout == True:
-        print "UDS timedout."
+    state = states['DOWNLOAD_SBL']
+    #state = states['ERASE_APP']
+    while (state <> states['IDLE']) or (mc.state <> mc.states['IDLE']):
+        main_func()
 
 finally:
     canif.rx_thread_active = False

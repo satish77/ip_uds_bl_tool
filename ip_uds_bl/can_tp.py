@@ -91,9 +91,12 @@ class CanTp(object):
     def on_receive(self):
         if myutils.debug_switch & 0x1 <> 0:
             print "CanTp::on_receive"
-        if self.DecodeFrame(self.canif.received_data) == True:
-            if self.event_sink <> None:
-                self.event_sink()
+        if self.canif.received_data[0] <> 0x30:
+            if self.DecodeFrame(self.canif.received_data) == True:
+                if self.event_sink <> None:
+                    self.event_sink()
+        else:
+            print 'Flow control frame received.'
 
     def Task(self):
         myutils.debug_print(1, "CanTp::Task")        
