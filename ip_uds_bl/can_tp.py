@@ -98,11 +98,10 @@ class CanTp(object):
                 if self.event_sink <> None:
                     self.event_sink()
         else:
-            print 'Flow control frame received.'
+            myutils.debug_print(myutils.can_msg_trace, 'Flow control frame received.')
 
     def TaskThread(self):
         myutils.debug_print(myutils.program_trace, "CanTp::TaskThread")        
-        print "CanTp::TaskThread"
         self.active = True
         start = time.clock()
         while self.active == True:

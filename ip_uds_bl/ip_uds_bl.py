@@ -64,6 +64,7 @@ class MainClass:
         # chunk size is limited to 1024 bytes eventhough 4095 is the protocol limit.        
         self.chunk_size = 1024
         self.state = self.states['UDS_REQUEST_DOWNLOAD']
+        self.uds.event_sink = self.on_rcv_data
         self.Task()
 
     def Task(self):
@@ -74,7 +75,7 @@ class MainClass:
             data = self.sr.get_data()            
             assert self.srec_idx < len(data)
             self.uds_data = []
-            start_address = data[self.srec_idx][0]
+            self.start_address = data[self.srec_idx][0]
             next_address  = data[self.srec_idx][0]
             # concatenate all contiguous data
             while (self.srec_idx < len(data)) and (data[self.srec_idx][0] == next_address):
@@ -82,12 +83,13 @@ class MainClass:
                 next_address = data[self.srec_idx][0] + len(data[self.srec_idx][1])
                 self.srec_idx = self.srec_idx + 1
             if len(self.uds_data) > 0:
-                self.uds.RequestDownload(start_address, len(self.uds_data))
+                self.uds.RequestDownload(self.start_address, len(self.uds_data))
                 self.chunk_idx = 0
                 self.state = self.states['UDS_TRANSFER_DATA']            
             else:
                 self.state = self.states['IDLE']
         elif self.state == self.states['UDS_TRANSFER_DATA']:
+            print '0x%08x' % (self.start_address+self.chunk_idx)
             self.uds.TransferData(self.uds_data[self.chunk_idx:self.chunk_idx+self.chunk_size])
             self.chunk_idx = self.chunk_idx + self.chunk_size
             if self.chunk_idx >= len(self.uds_data):
@@ -144,8 +146,14 @@ states = {
     'DOWNLOAD_APP': 3
 }
 
+block_to_erase = 9
+last_block_to_erase = 21 # SBL needs to be fixed for erase block 22 onwards
+
 def main_func():
     global state
+    global block_to_erase
+    global last_block_to_erase
+
     #while (mc.state <> mc.states['IDLE'] and (uds.timedout == False)):
     #    pass    
     #print 'mc.state', mc.state
@@ -155,13 +163,16 @@ def main_func():
             mc.DownloadS19(r'C:\p\hgprojects\TC27XSBL\app\bin\AurixSBL.s19')
             state = states['ERASE_APP']
         elif state == states['ERASE_APP']:
-            mc.EraseFlashBock(8, 1)
-            #state = states['IDLE']
-            state = states['DOWNLOAD_APP']
+            if block_to_erase <= last_block_to_erase:
+                mc.EraseFlashBock(block_to_erase, 1)
+                block_to_erase = block_to_erase + 1
+            else:
+                #state = states['IDLE']
+                state = states['DOWNLOAD_APP']
         elif state == states['DOWNLOAD_APP']:
-            #mc.DownloadS19(r'C:\p\hgprojects\TC27XAppBuild\app\bin\AurixApp.s19')
+            mc.DownloadS19(r'C:\p\hgprojects\VWAppBuild\app\bin\AurixApp.s19')
             # Program 256 bytes(mininum possible)
-            mc.TransferSomeData(flash_sec_addr[8], range(255) + [ int(random.random()*255)])
+            #mc.TransferSomeData(flash_sec_addr[8], range(255) + [ int(random.random()*255)])
             state = states['IDLE']
 
 

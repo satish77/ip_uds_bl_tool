@@ -3,7 +3,7 @@
 # 0x8000 Stop on first transfer
 # 0x4000 CAN Messages
 # 0x2000 UDS Timeout Disable
-debug_switch = 0x8003
+debug_switch = 0
 program_trace = 0x0001
 can_msg_trace = 0x4000
 
