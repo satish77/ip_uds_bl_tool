@@ -1,8 +1,8 @@
 import unittest
 import myutils
-import System.Timers
+#import System.Timers
 import threading
-
+import time
 
 class CanTp(object):
     def __init__(self, canif):
@@ -86,7 +86,10 @@ class CanTp(object):
             print
         self.data_out = list
         self.active = True
-        self.Task()
+        self.t = threading.Timer(0.1, self.TaskThread) # 100 ms
+        self.t.start()
+        #self.t.join()                
+        #self.Task()
         
     def on_receive(self):
         myutils.debug_print(myutils.program_trace, "CanTp::on_receive")
@@ -96,6 +99,23 @@ class CanTp(object):
                     self.event_sink()
         else:
             print 'Flow control frame received.'
+
+    def TaskThread(self):
+        myutils.debug_print(myutils.program_trace, "CanTp::TaskThread")        
+        print "CanTp::TaskThread"
+        self.active = True
+        start = time.clock()
+        while self.active == True:
+            if (time.clock()-start) > 0.001: # 1 ms
+                start = time.clock()
+                can_data_bytes = self.EncodeFrame()
+                if len(can_data_bytes) > 0:
+                    self.canif.xmit(can_data_bytes)
+                    self.timedout = False
+                else:
+                    self.active = False
+        #print self.timedout, self.active
+
 
     def Task(self):
         #myutils.debug_print(myutils.program_trace, "CanTp::Task")        

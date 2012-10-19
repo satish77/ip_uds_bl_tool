@@ -4,6 +4,7 @@ import can_tp
 import uds
 import myutils
 import System.Timers
+import random
 
 flash_sec_addr = [
     0xA0000000,
@@ -40,7 +41,8 @@ class MainClass:
                         'START'                : 1, 
                         'UDS_TRANSFER_DATA'    : 2, 
                         'UDS_TRANSFER_EXIT'    : 3, 
-                        'UDS_REQUEST_DOWNLOAD' : 4 }
+                        'UDS_REQUEST_DOWNLOAD' : 4, 
+                        'UDS_ERASE_MEMORY'     : 5 }
         self.state = self.states['IDLE']
         self.uds = uds
         self.uds.event_sink = self.on_rcv_data
@@ -101,6 +103,8 @@ class MainClass:
             #    self.state = self.states['IDLE']            
 
     def EraseFlashBock(self, start_block_idx, num_blocks):
+        self.uds.event_sink = self.EraseFlashBlockTask
+        self.state = self.states['UDS_ERASE_MEMORY']
         params = myutils.long_to_list(flash_sec_addr[start_block_idx])
         params.append(num_blocks)
         self.uds.RoutineControl(uds.control_type['START'], uds.routines['ERASE_MEMORY'], params) 
@@ -119,6 +123,8 @@ class MainClass:
             self.uds.RequestTransferExit()
             self.state = self.states['IDLE']            
     
+    def EraseFlashBlockTask(self):
+        self.state = self.states['IDLE']
 """
 Steps:-
 1. Download SBL
@@ -155,7 +161,7 @@ def main_func():
         elif state == states['DOWNLOAD_APP']:
             #mc.DownloadS19(r'C:\p\hgprojects\TC27XAppBuild\app\bin\AurixApp.s19')
             # Program 256 bytes(mininum possible)
-            mc.TransferSomeData(flash_sec_addr[8], range(256))
+            mc.TransferSomeData(flash_sec_addr[8], range(255) + [ int(random.random()*255)])
             state = states['IDLE']
 
 
@@ -191,4 +197,4 @@ try:
 finally:
     canif.rx_thread_active = False
 
-raw_input('Press any key to continue ...')
+#raw_input('Press any key to continue ...')
