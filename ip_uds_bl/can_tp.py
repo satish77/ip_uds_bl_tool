@@ -89,8 +89,7 @@ class CanTp(object):
         self.Task()
         
     def on_receive(self):
-        if myutils.debug_switch & 0x1 <> 0:
-            print "CanTp::on_receive"
+        myutils.debug_print(myutils.program_trace, "CanTp::on_receive")
         if self.canif.received_data[0] <> 0x30:
             if self.DecodeFrame(self.canif.received_data) == True:
                 if self.event_sink <> None:
@@ -99,7 +98,7 @@ class CanTp(object):
             print 'Flow control frame received.'
 
     def Task(self):
-        myutils.debug_print(1, "CanTp::Task")        
+        #myutils.debug_print(myutils.program_trace, "CanTp::Task")        
         if self.active == True:
             can_data_bytes = self.EncodeFrame()
             if len(can_data_bytes) > 0:
@@ -114,7 +113,8 @@ class CanTp(object):
             #    timer.Tick += self.on_timeout
             #    timer.Start()
             #    timer_id = timer.set_timer(1000, self.on_timeout) 
-                self.t = threading.Timer(0.01, self.on_stmin_tout) # 0.1 min
+                #self.t = threading.Timer(0.05, self.on_stmin_tout) # 50 ms
+                self.t = threading.Timer(0.1, self.on_stmin_tout) # 100 ms
                 self.t.start()
                 #self.t.join()                
             else:

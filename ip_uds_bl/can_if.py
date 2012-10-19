@@ -44,7 +44,8 @@ class CanIf:
             data = 0
             for i in range(len(list)):
                 data = (list[i] << (i*8)) | data
-            print "%016X\n" % data
+            if (myutils.debug_switch & myutils.can_msg_trace) != 0:
+                print "%016X\n" % data
             self.txChannel.xlTransmit(self.cmd_id, len(list), data)
 
     def rx_thread(self):
@@ -84,7 +85,7 @@ class CanIf:
                     #print int(vxlapi_NET20.XLClass.XLeventType.XL_RECEIVE_MSG)
                     if xlStatus[1].tag == 1:
                         #print 'XL_RECEIVE_MSG'
-                        if (myutils.debug_switch & 0x1) == 0x1:
+                        if (myutils.debug_switch & myutils.can_msg_trace) != 0:
                             self.rxChannel.xlPrintRx(xlStatus[1])
 
                         # print the received message

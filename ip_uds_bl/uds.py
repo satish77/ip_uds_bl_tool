@@ -18,7 +18,7 @@ class UDS():
     def xmit(self, data):
         self.timedout = False
         self.cantp.xmit(data)
-        #self.rcv_timer = threading.Timer(0.1, self.on_rcv_tout) # 0.1 min
+        #self.rcv_timer = threading.Timer(5, self.on_rcv_tout) # 5 seconds
         #self.rcv_timer.start()
 
     def on_rcv_tout(self):
@@ -27,15 +27,20 @@ class UDS():
         self.timedout = True
 
     def on_rcv_data(self):
+        myutils.debug_print(myutils.program_trace, 'UDS::on_rcv_data')
         if self.rcv_timer <> None:
             self.rcv_timer.cancel()
-            self.rcv_timer = None
-        myutils.debug_print(0x1, 'UDS::on_rcv_data')
+            self.rcv_timer = None        
         self.event_sink()
+        #if self.cantp.data_in[0] == (self.cantp.data_out[0]+0x40):
+        #    self.event_sink()
+        #else:
+        #    print 'UDS response failed'
+        #    sys.exit(1)
    
     def TransferData(self, data):
         """ Transfers at the most 4095 bytes of data """
-        myutils.debug_print(1, "UDS::TransferData")
+        myutils.debug_print(myutils.program_trace, "UDS::TransferData")
         self.blockSequenceCounter = (self.blockSequenceCounter + 1) % 255
         self.cantp.Init()
         uds_data = [0x36, self.blockSequenceCounter]
@@ -44,7 +49,7 @@ class UDS():
         
 
     def RequestDownload(self, address, data_size_bytes):
-        myutils.debug_print(1, "UDS::RequestDownload")
+        myutils.debug_print(myutils.program_trace, "UDS::RequestDownload")
         self.cantp.Init()
         self.blockSequenceCounter = 0
         uds_data = [0x34]
@@ -54,12 +59,12 @@ class UDS():
         self.xmit(uds_data)
 
     def RequestTransferExit(self):
-        myutils.debug_print(1, "UDS::RequestTransferExit")
+        myutils.debug_print(myutils.program_trace, "UDS::RequestTransferExit")
         self.cantp.Init()
         self.xmit([0x37])
 
     def RoutineControl(self, routine_control_type, routine_id, op):
-        myutils.debug_print(1, "UDS::RoutineControl")
+        myutils.debug_print(myutils.program_trace, "UDS::RoutineControl")
         self.cantp.Init()
         uds_data = [0x31]
         uds_data.append(routine_control_type)

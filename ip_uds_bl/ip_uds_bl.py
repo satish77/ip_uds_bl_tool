@@ -56,8 +56,7 @@ class MainClass:
         s19file.close()
         self.sr = SRecord.SRecord()
         self.sr.readrecords(lines)
-        if myutils.debug_switch & 0x1 <> 0:
-            self.sr.print_chunks()
+        self.sr.print_chunks()
         data = self.sr.get_data()
         self.srec_idx = 0
         # chunk size is limited to 1024 bytes eventhough 4095 is the protocol limit.        
