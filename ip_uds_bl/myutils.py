@@ -3,9 +3,12 @@
 # 0x8000 Stop on first transfer
 # 0x4000 CAN Messages
 # 0x2000 UDS Timeout Disable
-debug_switch = 0
+# 0x1000 debug info
+
 program_trace = 0x0001
 can_msg_trace = 0x4000
+debug_info    = 0x1000
+debug_switch  = 0
 
 def debug_print(mask, msg):
     if debug_switch & mask != 0:

@@ -5,6 +5,7 @@ import uds
 import myutils
 import System.Timers
 import random
+import System.DateTime
 
 flash_sec_addr = [
     0xA0000000,
@@ -35,6 +36,7 @@ flash_sec_addr = [
     0xA0180000,
     0xA01C0000
 ]
+
 class MainClass:
     def __init__(self, uds):
         self.states = { 'IDLE'                 : 0, 
@@ -49,7 +51,8 @@ class MainClass:
 
     def on_rcv_data(self):
         if self.state <> self.states['IDLE']:
-            self.Task()
+            while self.Task():
+                pass
 
     def DownloadS19(self, s19filename):
         """ Download S-Record file """
@@ -70,6 +73,8 @@ class MainClass:
     def Task(self):
         assert self.state in self.states.values()
 
+        continue_execution = False
+
         if self.state == self.states['UDS_REQUEST_DOWNLOAD']:
             self.uds.event_sink = self.on_rcv_data             
             data = self.sr.get_data()            
@@ -78,14 +83,29 @@ class MainClass:
             self.start_address = data[self.srec_idx][0]
             next_address  = data[self.srec_idx][0]
             # concatenate all contiguous data
-            while (self.srec_idx < len(data)) and (data[self.srec_idx][0] == next_address):
+            while (self.srec_idx < len(data)) and (data[self.srec_idx][0] == next_address) and (len(self.uds_data) < (self.chunk_size*2)):
                 self.uds_data.extend(data[self.srec_idx][1])
                 next_address = data[self.srec_idx][0] + len(data[self.srec_idx][1])
                 self.srec_idx = self.srec_idx + 1
-            if len(self.uds_data) > 0:
-                self.uds.RequestDownload(self.start_address, len(self.uds_data))
-                self.chunk_idx = 0
-                self.state = self.states['UDS_TRANSFER_DATA']            
+            """ find out if the block contains non-zero elements """
+            is_zero = True
+            for idx, byte in enumerate(self.uds_data):
+                if byte <> 0:
+                    is_zero = False
+                    myutils.debug_print(myutils.debug_info, "Non-zero offset %d" % idx)
+                    break
+            """ if length of block is non-zero, download the data """
+            if (len(self.uds_data) > 0):
+                if not is_zero:
+                    self.uds.RequestDownload(self.start_address, len(self.uds_data))
+                    self.chunk_idx = 0
+                    self.state = self.states['UDS_TRANSFER_DATA']    
+                else:
+                    print 'Skipped zero block at address 0x%08x' % self.start_address
+                    if self.srec_idx < len(data):
+                        continue_execution = True
+                    else:
+                        self.state = self.states['IDLE']
             else:
                 self.state = self.states['IDLE']
         elif self.state == self.states['UDS_TRANSFER_DATA']:
@@ -96,13 +116,16 @@ class MainClass:
                 self.state = self.states['UDS_TRANSFER_EXIT']
         elif self.state == self.states['UDS_TRANSFER_EXIT']:
             self.uds.RequestTransferExit()       
-            data = self.sr.get_data()                 
+            data = self.sr.get_data()  
+            """ switch to IDLE state if no more records to download """               
             if self.srec_idx < len(data):
                 self.state = self.states['UDS_REQUEST_DOWNLOAD']
             else:
                 self.state = self.states['IDLE']
             #if (myutils.debug_switch & 0x8000) == 0x8000: # stop on first transfer
             #    self.state = self.states['IDLE']            
+
+        return(continue_execution)
 
     def EraseFlashBock(self, start_block_idx, num_blocks):
         self.uds.event_sink = self.EraseFlashBlockTask
@@ -146,8 +169,8 @@ states = {
     'DOWNLOAD_APP': 3
 }
 
-block_to_erase = 9
-last_block_to_erase = 21 # SBL needs to be fixed for erase block 22 onwards
+block_to_erase = 7
+last_block_to_erase = 22
 
 def main_func():
     global state
@@ -163,7 +186,8 @@ def main_func():
             mc.DownloadS19(r'C:\p\hgprojects\TC27XSBL\app\bin\AurixSBL.s19')
             state = states['ERASE_APP']
         elif state == states['ERASE_APP']:
-            if block_to_erase <= last_block_to_erase:
+            if block_to_erase <= last_block_to_erase:                
+                print "Erasing Flash Sector: %d" % block_to_erase
                 mc.EraseFlashBock(block_to_erase, 1)
                 block_to_erase = block_to_erase + 1
             else:
@@ -199,6 +223,8 @@ def main_func():
 #finally:
 #    canif.rx_thread_active = False
 
+start_time = System.DateTime.Now
+
 try:
     state = states['DOWNLOAD_SBL']
     #state = states['ERASE_APP']
@@ -207,5 +233,7 @@ try:
 
 finally:
     canif.rx_thread_active = False
+
+print "Time taken: ", (System.DateTime.Now-start_time).Seconds, " Seconds"
 
 #raw_input('Press any key to continue ...')
